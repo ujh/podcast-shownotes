@@ -69,25 +69,32 @@ This writes `episode.shownotes.md` to the current directory.
 | `-o`, `--output-dir DIR` | `.` | Where to write outputs. |
 | `--whisper-model NAME` | `mlx-community/whisper-large-v3-turbo` on Apple Silicon, `large-v3-turbo` elsewhere | Pick a smaller model (e.g. `mlx-community/whisper-base`) for faster but lower-quality transcripts. |
 | `--claude-model ID` | `claude-opus-4-7` | Any Anthropic model id. |
-| `--keep-transcript` | off | Also write the timestamped transcript. |
 | `--transcript-only` | off | Stop after transcribing; do not call Claude. |
+| `--force-transcribe` | off | Re-run Whisper even if a cached transcript exists. |
 | `--login` | off | Re-run `claude setup-token` and re-cache the token, then exit. |
 
 ### Example
 
 ```bash
-uv run shownotes ~/Downloads/ep-42.mp3 -o ~/Notes --keep-transcript
+uv run shownotes ~/Downloads/ep-42.mp3 -o ~/Notes
 ```
 
 Produces:
 - `~/Notes/ep-42.transcript.txt` — timestamped transcript
 - `~/Notes/ep-42.shownotes.md` — show notes
 
+The transcript is always written and is reused on subsequent runs for the same
+audio file. This lets you iterate on the summary prompt or model without
+re-running Whisper. Pass `--force-transcribe` to discard the cached transcript
+and start over.
+
 ## How it works
 
 1. **Transcribe.** Whisper runs locally and emits segments with start
    timestamps. Each segment is formatted as `[MM:SS] text` and joined into a
-   single transcript string.
+   single transcript string, then written to
+   `<output-dir>/<audio-stem>.transcript.txt`. If that file already exists it
+   is reused as-is (skip with `--force-transcribe`).
 2. **Resolve credentials.** Order: `ANTHROPIC_API_KEY`, then
    `ANTHROPIC_OAUTH_TOKEN`, then the cached file, then bootstrap via
    `claude setup-token`.

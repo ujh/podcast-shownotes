@@ -251,14 +251,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Anthropic model id used to generate show notes (default: claude-opus-4-7).",
     )
     parser.add_argument(
-        "--keep-transcript",
-        action="store_true",
-        help="Also write the timestamped transcript to <stem>.transcript.txt.",
-    )
-    parser.add_argument(
         "--transcript-only",
         action="store_true",
         help="Stop after transcribing; do not call Claude.",
+    )
+    parser.add_argument(
+        "--force-transcribe",
+        action="store_true",
+        help="Re-run Whisper even if a cached transcript exists for this audio file.",
     )
     parser.add_argument(
         "--login",
@@ -293,14 +293,16 @@ def _run(argv: list[str] | None) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = args.audio.stem
-    whisper_model = args.whisper_model or default_whisper_model()
+    transcript_path = args.output_dir / f"{stem}.transcript.txt"
 
-    print(f"Transcribing {args.audio} with {whisper_model}...", file=sys.stderr)
-    segments = transcribe(args.audio, whisper_model)
-    transcript = render_transcript(segments)
-
-    if args.keep_transcript or args.transcript_only:
-        transcript_path = args.output_dir / f"{stem}.transcript.txt"
+    if transcript_path.exists() and not args.force_transcribe:
+        print(f"Using cached transcript: {transcript_path}", file=sys.stderr)
+        transcript = transcript_path.read_text()
+    else:
+        whisper_model = args.whisper_model or default_whisper_model()
+        print(f"Transcribing {args.audio} with {whisper_model}...", file=sys.stderr)
+        segments = transcribe(args.audio, whisper_model)
+        transcript = render_transcript(segments)
         transcript_path.write_text(transcript)
         print(f"Wrote transcript: {transcript_path}", file=sys.stderr)
 
