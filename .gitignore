@@ -17,5 +17,12 @@ wheels/
 *.transcript.txt
 *.shownotes.md
 
+# Audio inputs (don't commit binaries)
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
+
 # OS junk
 .DS_Store
