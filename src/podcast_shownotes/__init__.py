@@ -38,22 +38,33 @@ about. Light and a bit wry; not dry, not corporate, not LinkedIn.
 
 ## Mentioned
 A flat bulleted list of every concrete person, project, company, product, book, article, video, \
-tool, or URL referenced in the episode. Use Markdown links where:
-- the URL is spoken aloud or clearly implied in the transcript, or
-- the item has an obvious canonical URL you are confident about (e.g. GitHub Copilot → \
-https://github.com/features/copilot, Anthropic → https://www.anthropic.com, Claude Code → \
-https://www.claude.com/product/claude-code, Mastodon → https://joinmastodon.org).
+tool, or URL referenced in the episode, ordered roughly by when they came up. Do not group by \
+category. Skip generic items that don't link to anything (e.g. "the internet", "programming").
 
-When you are not confident about a URL, list the item as plain text. Do not group by category — \
-one flat list, ordered roughly by when they came up. Skip generic items that don't link to \
-anything (e.g. "the internet", "programming").
+**Every item must EITHER include a Markdown link OR be followed by a "Needs review" annotation.** \
+Plain unlinked items are not allowed — a bare name is useless to the reader and useless to a \
+human reviewer.
 
-When the transcript clearly references something specific that you cannot confidently identify or \
-link — an unfamiliar guest, a podcast episode without a title spelled out, a book whose name was \
-half-mumbled — do NOT silently drop it. Add it with a "Needs review" annotation immediately below \
-the bullet, formatted as a Markdown blockquote, summarizing what the hosts actually said plus any \
-clues that would help a human reviewer resolve it (topic, language, era, phonetic spellings, who \
-recommended it, etc.) and the timestamp. Example:
+For well-known products, services, sites, and companies, link to the canonical URL you are \
+confident about — for example:
+- GitHub Copilot → https://github.com/features/copilot
+- Microsoft Copilot → https://copilot.microsoft.com
+- Claude Code → https://www.claude.com/product/claude-code
+- Anthropic → https://www.anthropic.com
+- ChatGPT → https://chatgpt.com
+- LinkedIn → https://www.linkedin.com
+- Mastodon → https://joinmastodon.org
+- Bitbucket → https://bitbucket.org
+- Jira → https://www.atlassian.com/software/jira
+
+If the transcript contains a spoken URL or path, use that exactly.
+
+When you cannot confidently identify or link an item — an unfamiliar guest, a podcast episode \
+without a title spelled out, a book whose name was half-mumbled, a product with an ambiguous name \
+— do NOT silently drop it and do NOT leave it bare. Add it with a "Needs review" annotation \
+immediately below the bullet, formatted as a Markdown blockquote, summarizing what the hosts \
+actually said plus any clues that would help a human reviewer resolve it (topic, language, era, \
+phonetic spellings, who recommended it, likely candidates, etc.) and the timestamp. Example:
 
 - An Italian newspaper's English-language podcast episode about AI as a new industrial revolution
   > **Needs review:** Around [43:23] the hosts recommend an episode from an Italian newspaper's \
@@ -71,9 +82,9 @@ rewrite or paraphrase. Skip the section entirely if nothing genuinely stands out
 Rules:
 - Use HH:MM:SS timestamps when the episode is over an hour long, MM:SS otherwise.
 - Do not fabricate. Only include items actually present in the transcript.
-- If you are not sure of a URL, list the item without a link rather than guess.
+- Every item in Mentioned must be either linked or annotated with "Needs review". Never bare.
 - If something specific was clearly referenced but you cannot identify it, use the "Needs review" \
-annotation described above rather than dropping it.
+annotation rather than dropping it.
 - Title suggestions can draw on the strongest quotable moments.
 - Do not include hosts list, episode number, or duration — that lives on the feed already.
 """
