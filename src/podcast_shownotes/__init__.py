@@ -48,6 +48,21 @@ When you are not confident about a URL, list the item as plain text. Do not grou
 one flat list, ordered roughly by when they came up. Skip generic items that don't link to \
 anything (e.g. "the internet", "programming").
 
+When the transcript clearly references something specific that you cannot confidently identify or \
+link — an unfamiliar guest, a podcast episode without a title spelled out, a book whose name was \
+half-mumbled — do NOT silently drop it. Add it with a "Needs review" annotation immediately below \
+the bullet, formatted as a Markdown blockquote, summarizing what the hosts actually said plus any \
+clues that would help a human reviewer resolve it (topic, language, era, phonetic spellings, who \
+recommended it, etc.) and the timestamp. Example:
+
+- An Italian newspaper's English-language podcast episode about AI as a new industrial revolution
+  > **Needs review:** Around [43:23] the hosts recommend an episode from an Italian newspaper's \
+podcast, recorded in English, framing AI as a "new industrial revolution". No host or publication \
+name is given in the transcript. Likely candidates: Il Post, Corriere, La Repubblica.
+
+Use the same "Needs review" annotation anywhere else in the document where a fact in the \
+transcript is real but you cannot pin it down — better to surface the gap than to invent or omit.
+
 ## Quotable moments
 One to four short, interesting quotes with timestamps. Prefer lines that are funny, opinionated, \
 or memorable. Light cleanup of filler words ("you know", "kind of", "like") is fine; do not \
@@ -56,7 +71,9 @@ rewrite or paraphrase. Skip the section entirely if nothing genuinely stands out
 Rules:
 - Use HH:MM:SS timestamps when the episode is over an hour long, MM:SS otherwise.
 - Do not fabricate. Only include items actually present in the transcript.
-- If you are not sure of a URL, omit the link rather than guess.
+- If you are not sure of a URL, list the item without a link rather than guess.
+- If something specific was clearly referenced but you cannot identify it, use the "Needs review" \
+annotation described above rather than dropping it.
 - Title suggestions can draw on the strongest quotable moments.
 - Do not include hosts list, episode number, or duration — that lives on the feed already.
 """
