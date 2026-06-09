@@ -5,10 +5,14 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+
+CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude."
 
 
 SHOWNOTES_SYSTEM_PROMPT = """You generate show notes for a podcast episode from its transcript.
@@ -39,6 +43,10 @@ Rules:
 """
 
 
+OAUTH_BETA_HEADER = "oauth-2025-04-20"
+TOKEN_CONFIG_PATH = Path.home() / ".config" / "podcast-shownotes" / "oauth-token"
+
+
 def is_apple_silicon() -> bool:
     return sys.platform == "darwin" and platform.machine() == "arm64"
 
@@ -56,6 +64,17 @@ def format_timestamp(seconds: float) -> str:
 class Segment:
     start: float
     text: str
+
+
+@dataclass
+class Credentials:
+    """Either api_key (for direct API access) or oauth_token (from `claude setup-token`)."""
+    api_key: str | None = None
+    oauth_token: str | None = None
+
+    @property
+    def uses_oauth(self) -> bool:
+        return self.oauth_token is not None
 
 
 def transcribe_mlx(audio_path: Path, model: str) -> list[Segment]:
@@ -84,20 +103,98 @@ def render_transcript(segments: Iterable[Segment]) -> str:
     return "\n".join(f"[{format_timestamp(s.start)}] {s.text}" for s in segments)
 
 
-def generate_notes(transcript: str, claude_model: str) -> str:
+def resolve_credentials(*, force_login: bool = False) -> Credentials:
+    """Look up Anthropic credentials.
+
+    Order:
+      1. ``ANTHROPIC_API_KEY`` env var (traditional API key).
+      2. ``ANTHROPIC_OAUTH_TOKEN`` env var.
+      3. Cached OAuth token at ``~/.config/podcast-shownotes/oauth-token``.
+      4. Bootstrap via ``claude setup-token``.
+    """
+    if not force_login:
+        if api_key := os.environ.get("ANTHROPIC_API_KEY"):
+            return Credentials(api_key=api_key)
+        if oauth := os.environ.get("ANTHROPIC_OAUTH_TOKEN"):
+            return Credentials(oauth_token=oauth)
+        if TOKEN_CONFIG_PATH.exists():
+            token = TOKEN_CONFIG_PATH.read_text().strip()
+            if token:
+                return Credentials(oauth_token=token)
+
+    return Credentials(oauth_token=bootstrap_oauth_token())
+
+
+def bootstrap_oauth_token() -> str:
+    """Run ``claude setup-token`` and cache the resulting OAuth token."""
+    if not _command_exists("claude"):
+        raise RuntimeError(
+            "claude CLI not found on PATH. Install Claude Code from "
+            "https://docs.claude.com/en/docs/claude-code or set ANTHROPIC_API_KEY."
+        )
+
+    print(
+        "No Anthropic credentials found.\n"
+        "Launching `claude setup-token` — finish the browser flow, then paste the token below.\n",
+        file=sys.stderr,
+    )
+    subprocess.run(["claude", "setup-token"], check=True)
+
+    print(file=sys.stderr)
+    token = input("Paste the OAuth token: ").strip()
+    if not token:
+        raise RuntimeError("No token provided.")
+
+    TOKEN_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TOKEN_CONFIG_PATH.write_text(token + "\n")
+    TOKEN_CONFIG_PATH.chmod(0o600)
+    print(f"Token cached at {TOKEN_CONFIG_PATH}", file=sys.stderr)
+    return token
+
+
+def _command_exists(name: str) -> bool:
+    from shutil import which
+    return which(name) is not None
+
+
+def make_client(creds: Credentials):
     from anthropic import Anthropic
 
-    client = Anthropic()
+    if creds.api_key:
+        return Anthropic(api_key=creds.api_key)
+    return Anthropic(
+        auth_token=creds.oauth_token,
+        default_headers={"anthropic-beta": OAUTH_BETA_HEADER},
+    )
+
+
+def build_system_blocks(creds: Credentials) -> list[dict]:
+    """Prefix with the Claude Code marker when using an OAuth subscription token."""
+    blocks: list[dict] = []
+    if creds.uses_oauth:
+        blocks.append(
+            {
+                "type": "text",
+                "text": CLAUDE_CODE_SYSTEM_PREFIX,
+                "cache_control": {"type": "ephemeral"},
+            }
+        )
+    blocks.append(
+        {
+            "type": "text",
+            "text": SHOWNOTES_SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }
+    )
+    return blocks
+
+
+def generate_notes(transcript: str, claude_model: str, creds: Credentials) -> str:
+    client = make_client(creds)
     message = client.messages.create(
         model=claude_model,
         max_tokens=4096,
-        system=[
-            {
-                "type": "text",
-                "text": SHOWNOTES_SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
+        system=build_system_blocks(creds),
         messages=[
             {
                 "role": "user",
@@ -126,7 +223,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="shownotes",
         description="Generate podcast show notes from a local audio file.",
     )
-    parser.add_argument("audio", type=Path, help="Path to audio file (mp3, wav, m4a, flac, ...)")
+    parser.add_argument(
+        "audio",
+        type=Path,
+        nargs="?",
+        help="Path to audio file (mp3, wav, m4a, flac, ...). Omit when using --login.",
+    )
     parser.add_argument(
         "-o",
         "--output-dir",
@@ -145,8 +247,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--claude-model",
-        default="claude-sonnet-4-6",
-        help="Anthropic model id used to generate show notes (default: claude-sonnet-4-6).",
+        default="claude-opus-4-7",
+        help="Anthropic model id used to generate show notes (default: claude-opus-4-7).",
     )
     parser.add_argument(
         "--keep-transcript",
@@ -158,6 +260,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Stop after transcribing; do not call Claude.",
     )
+    parser.add_argument(
+        "--login",
+        action="store_true",
+        help="Run `claude setup-token` to (re)generate the OAuth token, then exit.",
+    )
     return parser.parse_args(argv)
 
 
@@ -168,13 +275,21 @@ def main(argv: list[str] | None = None) -> None:
 def _run(argv: list[str] | None) -> int:
     args = parse_args(argv)
 
+    if args.login:
+        resolve_credentials(force_login=True)
+        return 0
+
+    if args.audio is None:
+        print("error: audio file is required (or pass --login)", file=sys.stderr)
+        return 2
+
     if not args.audio.exists():
         print(f"error: audio file not found: {args.audio}", file=sys.stderr)
         return 1
 
-    if not args.transcript_only and not os.environ.get("ANTHROPIC_API_KEY"):
-        print("error: ANTHROPIC_API_KEY is not set", file=sys.stderr)
-        return 1
+    creds: Credentials | None = None
+    if not args.transcript_only:
+        creds = resolve_credentials()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = args.audio.stem
@@ -192,8 +307,9 @@ def _run(argv: list[str] | None) -> int:
     if args.transcript_only:
         return 0
 
+    assert creds is not None
     print(f"Generating show notes with {args.claude_model}...", file=sys.stderr)
-    notes = generate_notes(transcript, args.claude_model)
+    notes = generate_notes(transcript, args.claude_model, creds)
 
     notes_path = args.output_dir / f"{stem}.shownotes.md"
     notes_path.write_text(notes)
