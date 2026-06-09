@@ -1,8 +1,16 @@
 # podcast-shownotes
 
-Generate podcast show notes from a local audio file. Transcribes locally with
-Whisper, then asks Claude (Opus by default) to produce a Markdown summary,
-topic list, mentioned people / books / projects / URLs, and quotable moments.
+Generate show notes for the [Expanding Beyond](https://expandingbeyond.it/)
+podcast from a local audio file. Transcribes the episode locally with Whisper,
+then asks Claude (Opus by default) to write Markdown notes in the show's house
+style: a handful of title suggestions, a short conversational summary, a flat
+list of mentioned items with links, and a few quotable moments. References
+the model can't pin down are surfaced inline as "Needs review" annotations so
+a human reviewer can resolve them in one place instead of re-listening.
+
+The prompt is tuned to Expanding Beyond's tone, host names (Monica and Urban),
+and existing feed format. If you fork this for a different podcast, edit
+`SHOWNOTES_SYSTEM_PROMPT` in `src/podcast_shownotes/__init__.py`.
 
 No audio is sent to a third party — only the resulting transcript is sent to
 the Claude API to write the notes.
@@ -76,34 +84,55 @@ This writes `episode.shownotes.md` to the current directory.
 ### Example
 
 ```bash
-uv run shownotes ~/Downloads/ep-42.mp3 -o ~/Notes
+uv run shownotes "Expanding Beyond EP 63.mp3"
 ```
 
 Produces:
-- `~/Notes/ep-42.transcript.txt` — timestamped transcript
-- `~/Notes/ep-42.shownotes.md` — show notes
+- `Expanding Beyond EP 63.transcript.txt` — timestamped transcript
+- `Expanding Beyond EP 63.shownotes.md` — show notes
 
 The transcript is always written and is reused on subsequent runs for the same
-audio file. This lets you iterate on the summary prompt or model without
-re-running Whisper. Pass `--force-transcribe` to discard the cached transcript
-and start over.
+audio file. This makes iterating on the show-notes prompt or swapping the
+Claude model cheap — only the summarization step re-runs. Pass
+`--force-transcribe` to discard the cached transcript and start over.
+
+## Output format
+
+The generated `*.shownotes.md` follows the Expanding Beyond house style:
+
+- **Title suggestions** — three to five short, conversational episode titles
+  in the style of past episodes ("The one where we talk about AI", "Keep
+  your database close").
+- **Summary** — one to three sentences naming the hosts; light and a bit
+  wry, not a corporate abstract.
+- **Mentioned** — a flat list of people, projects, tools, books, and URLs,
+  Markdown-linked where the URL is canonical or spoken aloud.
+- **Quotable moments** — one to four short, timestamped quotes.
+
+When the transcript clearly references something the model cannot
+confidently identify or link (an unfamiliar guest, a half-mumbled book
+title, a podcast episode named only by topic), the item still appears in
+the Mentioned list and is followed by a `> **Needs review:**` blockquote
+that summarizes what was said and gives any clues — language, era, who
+recommended it, phonetic spellings, likely candidates — so a human reviewer
+can resolve it without re-listening.
 
 ## How it works
 
 1. **Transcribe.** Whisper runs locally and emits segments with start
    timestamps. Each segment is formatted as `[MM:SS] text` and joined into a
    single transcript string, then written to
-   `<output-dir>/<audio-stem>.transcript.txt`. If that file already exists it
-   is reused as-is (skip with `--force-transcribe`).
+   `<output-dir>/<audio-stem>.transcript.txt`. If that file already exists
+   it is reused as-is (skip with `--force-transcribe`).
 2. **Resolve credentials.** Order: `ANTHROPIC_API_KEY`, then
    `ANTHROPIC_OAUTH_TOKEN`, then the cached file, then bootstrap via
    `claude setup-token`.
-3. **Summarize.** The transcript is sent to Claude with a system prompt
-   describing the show-notes format. When using an OAuth subscription token,
-   the system prompt is prefixed with the Claude Code marker the gateway
-   requires, and the request includes the `anthropic-beta: oauth-2025-04-20`
-   header. The system prompt is marked for prompt caching so repeated runs
-   against the same model are cheaper.
+3. **Summarize.** The transcript is sent to Claude with the show-notes
+   system prompt. When using an OAuth subscription token, the system prompt
+   is prefixed with the Claude Code marker the gateway requires, and the
+   request includes the `anthropic-beta: oauth-2025-04-20` header. The
+   system prompt is marked for prompt caching so repeated runs against the
+   same model are cheaper.
 4. **Write.** The model's reply is written verbatim as Markdown.
 
 ## License
