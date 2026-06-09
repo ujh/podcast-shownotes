@@ -80,6 +80,9 @@ This writes `episode.shownotes.md` to the current directory.
 | `--transcript-only` | off | Stop after transcribing; do not call Claude. |
 | `--force-transcribe` | off | Re-run Whisper even if a cached transcript exists. |
 | `--login` | off | Re-run `claude setup-token` and re-cache the token, then exit. |
+| `--feed-url URL` | Expanding Beyond Fireside feed | RSS feed used to fetch recent episodes for style reference. |
+| `--style-episode-limit N` | `10` | How many recent episodes to load. |
+| `--no-style-feed` | off | Skip the RSS fetch entirely. |
 
 ### Example
 
@@ -105,8 +108,11 @@ The generated `*.shownotes.md` follows the Expanding Beyond house style:
   your database close").
 - **Summary** — one to three sentences naming the hosts; light and a bit
   wry, not a corporate abstract.
-- **Mentioned** — a flat list of people, projects, tools, books, and URLs,
-  Markdown-linked where the URL is canonical or spoken aloud.
+- **Mentioned** — a flat list of lookup-worthy items only. Household-name
+  sites (LinkedIn, Twitter, Google, Wikipedia, etc.), generic company names
+  (Anthropic, OpenAI, Microsoft), and ubiquitous languages/tools (Python,
+  Excel) are skipped — they don't help the reader. Every item that does
+  appear is either a Markdown link or carries a "Needs review" annotation.
 - **Quotable moments** — one to four short, timestamped quotes.
 
 When the transcript clearly references something the model cannot
@@ -127,13 +133,18 @@ can resolve it without re-listening.
 2. **Resolve credentials.** Order: `ANTHROPIC_API_KEY`, then
    `ANTHROPIC_OAUTH_TOKEN`, then the cached file, then bootstrap via
    `claude setup-token`.
-3. **Summarize.** The transcript is sent to Claude with the show-notes
+3. **Pull live style reference.** The last ten episodes of the Expanding
+   Beyond feed are fetched from RSS on every run and prepended to the user
+   message as a style reference, so the title voice and Mentioned-list
+   formatting follow the most recent published episodes rather than drift
+   from a static prompt. Skip with `--no-style-feed`.
+4. **Summarize.** The transcript is sent to Claude with the show-notes
    system prompt. When using an OAuth subscription token, the system prompt
    is prefixed with the Claude Code marker the gateway requires, and the
    request includes the `anthropic-beta: oauth-2025-04-20` header. The
    system prompt is marked for prompt caching so repeated runs against the
    same model are cheaper.
-4. **Write.** The model's reply is written verbatim as Markdown.
+5. **Write.** The model's reply is written verbatim as Markdown.
 
 ## License
 

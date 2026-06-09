@@ -7,6 +7,9 @@ import os
 import platform
 import subprocess
 import sys
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -37,25 +40,32 @@ like "In this episode" or "The hosts discuss". Imagine you're texting a friend w
 about. Light and a bit wry; not dry, not corporate, not LinkedIn.
 
 ## Mentioned
-A flat bulleted list of every concrete person, project, company, product, book, article, video, \
-tool, or URL referenced in the episode, ordered roughly by when they came up. Do not group by \
-category. Skip generic items that don't link to anything (e.g. "the internet", "programming").
+A flat bulleted list of specific, lookup-worthy things referenced in the episode — books, \
+articles, videos, podcasts, blog posts, newsletters, niche tools, products, projects, talks, or \
+URLs. Order them roughly by when they came up. Do not group by category.
 
-**Every item must EITHER include a Markdown link OR be followed by a "Needs review" annotation.** \
-Plain unlinked items are not allowed — a bare name is useless to the reader and useless to a \
-human reviewer.
+**Skip anything that's common knowledge for the audience of a tech podcast.** A reader does not \
+need to be told what LinkedIn, Twitter/X, Google, Facebook, Instagram, YouTube, Reddit, Wikipedia, \
+Anthropic, OpenAI, Microsoft, GitHub, Apple, or Stack Overflow are. Also skip programming \
+languages (Python, JavaScript, C#) and ubiquitous office tools (Excel, Word, Zoom) when they're \
+just name-dropped in passing — only include them if the episode is actually about that thing or \
+points at a specific feature, post, or product page. The Mentioned list exists to help the reader \
+follow up on things they might not already know; if a link is obvious-knowledge filler, leave it \
+out.
 
-For well-known products, services, sites, and companies, link to the canonical URL you are \
-confident about — for example:
+A useful test: would a savvy listener gain anything from clicking this link? If no, drop it.
+
+**Every item you DO include must either be a Markdown link OR be followed by a "Needs review" \
+annotation.** Plain unlinked items are not allowed — a bare name is useless to the reader and \
+useless to a human reviewer.
+
+For well-known specific products with a clear canonical URL, link directly — for example:
 - GitHub Copilot → https://github.com/features/copilot
 - Microsoft Copilot → https://copilot.microsoft.com
 - Claude Code → https://www.claude.com/product/claude-code
-- Anthropic → https://www.anthropic.com
 - ChatGPT → https://chatgpt.com
-- LinkedIn → https://www.linkedin.com
 - Mastodon → https://joinmastodon.org
-- Bitbucket → https://bitbucket.org
-- Jira → https://www.atlassian.com/software/jira
+- CodeRabbit → https://www.coderabbit.ai
 
 If the transcript contains a spoken URL or path, use that exactly.
 
@@ -92,6 +102,10 @@ annotation rather than dropping it.
 
 OAUTH_BETA_HEADER = "oauth-2025-04-20"
 TOKEN_CONFIG_PATH = Path.home() / ".config" / "podcast-shownotes" / "oauth-token"
+
+RSS_FEED_URL = "https://feeds.fireside.fm/expanding-beyond/rss"
+STYLE_EPISODE_LIMIT = 10
+RSS_FETCH_TIMEOUT_SECONDS = 15
 
 
 def is_apple_silicon() -> bool:
@@ -236,18 +250,79 @@ def build_system_blocks(creds: Credentials) -> list[dict]:
     return blocks
 
 
-def generate_notes(transcript: str, claude_model: str, creds: Credentials) -> str:
+@dataclass
+class EpisodeRef:
+    title: str
+    description: str
+    pubdate: str
+
+
+def fetch_recent_episodes(
+    url: str = RSS_FEED_URL,
+    limit: int = STYLE_EPISODE_LIMIT,
+    timeout: float = RSS_FETCH_TIMEOUT_SECONDS,
+) -> list[EpisodeRef]:
+    """Pull the most recent ``limit`` episodes from the RSS feed for style reference."""
+    request = urllib.request.Request(url, headers={"User-Agent": "podcast-shownotes/0.1"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        data = response.read()
+    root = ET.fromstring(data)
+    channel = root.find("channel")
+    if channel is None:
+        return []
+    episodes: list[EpisodeRef] = []
+    for item in channel.findall("item")[:limit]:
+        title = (item.findtext("title") or "").strip()
+        description = (item.findtext("description") or "").strip()
+        pubdate = (item.findtext("pubDate") or "").strip()
+        if title:
+            episodes.append(EpisodeRef(title=title, description=description, pubdate=pubdate))
+    return episodes
+
+
+def format_style_reference(episodes: list[EpisodeRef]) -> str:
+    if not episodes:
+        return ""
+    lines = [
+        "Below are the most recent episodes of Expanding Beyond, in reverse chronological",
+        "order, taken straight from the live RSS feed. They are the authoritative reference",
+        "for the show's current title style, summary voice, and Mentioned-list format.",
+        "Match them — adopt their tone, link style, and structure, even if it conflicts with",
+        "the static examples above.",
+        "",
+    ]
+    for i, ep in enumerate(episodes, 1):
+        lines.append(f"### Recent episode {i}")
+        lines.append(f"**Title:** {ep.title}")
+        if ep.pubdate:
+            lines.append(f"**Published:** {ep.pubdate}")
+        if ep.description:
+            lines.append("**Notes:**")
+            lines.append(ep.description)
+        lines.append("")
+    return "\n".join(lines)
+
+
+def generate_notes(
+    transcript: str,
+    claude_model: str,
+    creds: Credentials,
+    style_reference: str = "",
+) -> str:
     client = make_client(creds)
+
+    user_sections: list[str] = []
+    if style_reference:
+        user_sections.append(style_reference)
+        user_sections.append("---")
+    user_sections.append(f"Transcript of the episode you are writing notes for:\n\n{transcript}")
+    user_content = "\n\n".join(user_sections)
+
     message = client.messages.create(
         model=claude_model,
         max_tokens=4096,
         system=build_system_blocks(creds),
-        messages=[
-            {
-                "role": "user",
-                "content": f"Transcript:\n\n{transcript}",
-            }
-        ],
+        messages=[{"role": "user", "content": user_content}],
     )
     parts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
     return "".join(parts).strip() + "\n"
@@ -312,6 +387,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run `claude setup-token` to (re)generate the OAuth token, then exit.",
     )
+    parser.add_argument(
+        "--feed-url",
+        default=RSS_FEED_URL,
+        help=(
+            "RSS feed used to fetch recent episodes as style reference "
+            "(default: Expanding Beyond)."
+        ),
+    )
+    parser.add_argument(
+        "--no-style-feed",
+        action="store_true",
+        help="Skip fetching recent episodes from the RSS feed.",
+    )
+    parser.add_argument(
+        "--style-episode-limit",
+        type=int,
+        default=STYLE_EPISODE_LIMIT,
+        help=f"Number of recent episodes to include as style reference (default: {STYLE_EPISODE_LIMIT}).",
+    )
     return parser.parse_args(argv)
 
 
@@ -357,8 +451,25 @@ def _run(argv: list[str] | None) -> int:
         return 0
 
     assert creds is not None
+
+    style_reference = ""
+    if not args.no_style_feed:
+        try:
+            print(
+                f"Fetching last {args.style_episode_limit} episodes from {args.feed_url} for style reference...",
+                file=sys.stderr,
+            )
+            episodes = fetch_recent_episodes(args.feed_url, args.style_episode_limit)
+            style_reference = format_style_reference(episodes)
+            print(f"  Loaded {len(episodes)} episodes.", file=sys.stderr)
+        except (urllib.error.URLError, ET.ParseError, OSError) as exc:
+            print(
+                f"warning: could not fetch RSS feed ({exc}); proceeding without style reference.",
+                file=sys.stderr,
+            )
+
     print(f"Generating show notes with {args.claude_model}...", file=sys.stderr)
-    notes = generate_notes(transcript, args.claude_model, creds)
+    notes = generate_notes(transcript, args.claude_model, creds, style_reference)
 
     notes_path = args.output_dir / f"{stem}.shownotes.md"
     notes_path.write_text(notes)
