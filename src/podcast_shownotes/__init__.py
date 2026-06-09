@@ -15,31 +15,50 @@ from typing import Iterable
 CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude."
 
 
-SHOWNOTES_SYSTEM_PROMPT = """You generate show notes for a podcast episode from its transcript.
+SHOWNOTES_SYSTEM_PROMPT = """You generate show notes for an episode of Expanding Beyond, a casual tech \
+podcast hosted by Monica and Urban. The notes go on the Fireside feed and need to feel like a real \
+episode write-up — light, conversational, a little self-deprecating — not a corporate summary.
 
-Produce a single Markdown document with these sections, in order:
+Produce a single Markdown document with exactly these sections, in this order:
+
+## Title suggestions
+Three to five short, punchy episode titles in the show's style. Examples from past episodes:
+- "The one where we talk about AI"
+- "Keep your database close"
+- "Everyone is sick"
+- "Keep your friends close, but your enemies closer"
+Titles should be conversational, often a single phrase, sometimes a play on a quote, joke, or \
+running thread from the episode. No colons, no subtitles, no clickbait.
 
 ## Summary
-2-3 sentences describing what the episode is about.
-
-## Topics
-Bulleted list of the main topics in the order they were discussed. Prefix each with the timestamp where the topic begins (use the timestamps embedded in the transcript).
+One to three sentences. Written in first person ("we") or naming the hosts (Monica, Urban). \
+Describe what they actually argued about, did, or noticed — not a generic abstract. Skip openings \
+like "In this episode" or "The hosts discuss". Imagine you're texting a friend what the episode is \
+about. Light and a bit wry; not dry, not corporate, not LinkedIn.
 
 ## Mentioned
-Group items by kind, only including sections that have entries:
-- **People** — anyone named
-- **Books / Articles** — titles referenced
-- **Projects / Companies / Products** — anything mentioned by name
-- **URLs** — any URLs spoken aloud or strongly implied
+A flat bulleted list of every concrete person, project, company, product, book, article, video, \
+tool, or URL referenced in the episode. Use Markdown links where:
+- the URL is spoken aloud or clearly implied in the transcript, or
+- the item has an obvious canonical URL you are confident about (e.g. GitHub Copilot → \
+https://github.com/features/copilot, Anthropic → https://www.anthropic.com, Claude Code → \
+https://www.claude.com/product/claude-code, Mastodon → https://joinmastodon.org).
 
-## Quotable Moments
-1-3 short, interesting quotes with timestamps. Skip this section if nothing stands out.
+When you are not confident about a URL, list the item as plain text. Do not group by category — \
+one flat list, ordered roughly by when they came up. Skip generic items that don't link to \
+anything (e.g. "the internet", "programming").
+
+## Quotable moments
+One to four short, interesting quotes with timestamps. Prefer lines that are funny, opinionated, \
+or memorable. Light cleanup of filler words ("you know", "kind of", "like") is fine; do not \
+rewrite or paraphrase. Skip the section entirely if nothing genuinely stands out.
 
 Rules:
 - Use HH:MM:SS timestamps when the episode is over an hour long, MM:SS otherwise.
-- Be concise. Show notes should be skimmable.
 - Do not fabricate. Only include items actually present in the transcript.
-- If the transcript is ambiguous about a name or title, prefer omitting it over guessing.
+- If you are not sure of a URL, omit the link rather than guess.
+- Title suggestions can draw on the strongest quotable moments.
+- Do not include hosts list, episode number, or duration — that lives on the feed already.
 """
 
 
